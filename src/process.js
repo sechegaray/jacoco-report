@@ -1,5 +1,34 @@
+function extractAllPackages(obj) {
+  const packages = [];
+  if (obj === null) {
+    return packages;
+  }
+  if (Array.isArray(obj)) {
+    packages.push(...obj.flatMap(extractAllPackages));
+  } else if (typeof obj === 'object') {
+    packages.push(...extractPackageFromObject(obj));
+  }
+  return packages;
+}
+
+function extractPackageFromObject(obj) {
+  const packages = [];
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === "package") {
+      if (Array.isArray(value)) {
+        packages.push(...value);
+      } else { 
+        packages.push(value);
+      }
+    } else {
+      packages.push(...extractAllPackages(value));
+    }
+  }
+  return packages;
+}
+
 function getFileCoverage(reports, files) {
-  const packages = reports.map((report) => report["package"]);
+  const packages = extractAllPackages(reports);
   return getFileCoverageFromPackages([].concat(...packages), files);
 }
 
@@ -7,28 +36,28 @@ function getFileCoverageFromPackages(packages, files) {
   const result = {};
   const resultFiles = [];
   packages.forEach((item) => {
-    const packageName = item["$"].name;
-    const sourceFiles = item.sourcefile;
-    sourceFiles.forEach((sourceFile) => {
-      const sourceFileName = sourceFile["$"].name;
-      var file = files.find(function (f) {
-        return f.filePath.endsWith(`${packageName}/${sourceFileName}`);
-      });
-      if (file != null) {
-        const fileName = sourceFile["$"].name;
-        const counters = sourceFile["counter"];
-        if (counters != null && counters.length != 0) {
-          const coverage = getDetailedCoverage(counters, "INSTRUCTION");
-          file["name"] = fileName;
-          file["missed"] = coverage.missed;
-          file["covered"] = coverage.covered;
-          file["percentage"] = coverage.percentage;
-          resultFiles.push(file);
+      const packageName = item["$"].name;
+      const sourceFiles = item.sourcefile;
+      sourceFiles.forEach((sourceFile) => {
+        const sourceFileName = sourceFile["$"].name;
+        const file = files.find(function (f) {
+          return f.filePath.endsWith(`${packageName}/${sourceFileName}`);
+        });
+        if (file != null) {
+          const fileName = sourceFile["$"].name;
+          const counters = sourceFile["counter"];
+          if (counters != null && counters.length != 0) {
+            const coverage = getDetailedCoverage(counters, "INSTRUCTION");
+            file["name"] = fileName;
+            file["missed"] = coverage.missed;
+            file["covered"] = coverage.covered;
+            file["percentage"] = coverage.percentage;
+            resultFiles.push(file);
+          }
         }
-      }
+      });
     });
-    resultFiles.sort((a, b) => b.percentage - a.percentage);
-  });
+  resultFiles.sort((a, b) => b.percentage - a.percentage);  
   result.files = resultFiles;
   if (resultFiles.length != 0) {
     result.percentage = getTotalPercentage(resultFiles);
